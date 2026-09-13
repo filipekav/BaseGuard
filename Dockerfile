@@ -26,4 +26,4 @@ LABEL org.opencontainers.image.source="https://github.com/filipekav/BaseGuard" \
       org.opencontainers.image.description="Backups locais de PostgreSQL e MySQL para CasaOS"
 EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 CMD ["baseguard","healthcheck"]
-ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
+ENTRYPOINT ["/bin/sh", "/usr/local/bin/docker-entrypoint.sh"]
