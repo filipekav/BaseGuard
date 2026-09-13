@@ -36,7 +36,7 @@ Após a publicação da imagem no GitHub Actions:
 
 1. Abra **Instalação personalizada** e clique no ícone **Importar**, no canto superior direito.
 2. Importe este arquivo (ou cole o conteúdo): **[compose.casaos.yaml](https://raw.githubusercontent.com/filipekav/BaseGuard/main/compose.casaos.yaml)**.
-3. Confira a porta externa `8080` e os diretórios em `/DATA`. Se a porta estiver ocupada, altere a porta do host e a porta da Web UI, mantendo a porta interna `8080`.
+3. Confira a porta externa `18437` e os diretórios em `/DATA`. Se a porta estiver ocupada, altere a porta do host e a porta da Web UI, mantendo a porta interna `8080`.
 4. Clique em **Instalar**. O CasaOS baixa `ghcr.io/filipekav/baseguard:latest`, escolhendo ARM64 ou AMD64 automaticamente.
 5. Abra `http://IP-DO-SERVIDOR:18437`. O usuário é **admin** e a senha inicial aleatória aparece nos logs do container. Troque-a em **Configurações**.
 
@@ -45,6 +45,34 @@ O primeiro início prepara automaticamente os diretórios dedicados de dados, ch
 Se preferir preencher o formulário manualmente, use imagem **`ghcr.io/filipekav/baseguard`**, tag **`latest`**, título **BaseGuard**, porta externa **18437** e porta interna **8080**. A importação do Compose é recomendada porque também configura volumes, permissões de inicialização, ambiente e healthcheck.
 
 O destino automático `/DATA/Backups/baseguard` é para **disco local**. Para NAS/USB use a configuração manual abaixo e desative `BASEGUARD_INIT_LOCAL_DESTINATION`; nunca inicialize automaticamente um compartilhamento que pode estar desmontado. Em instalações existentes, um marcador ausente não é recriado automaticamente.
+
+### Atualizar uma instalação com erro de permissão
+
+Depois que o workflow publicar a correção, atualize **a imagem e a configuração do container**. Apenas reiniciar ou baixar `latest` mantém as configurações antigas de usuário e capacidades.
+
+No CasaOS, use o `compose.casaos.yaml` atualizado para recriar o serviço, preservando os mesmos caminhos dos volumes. O usuário inicial deve ser `0:0`, com as capacidades padrão do Docker (remova listas antigas de `cap_drop` e `cap_add`). Não ative modo privilegiado. `/data`, `/secrets` e `/backups` precisam estar montados com escrita; o sistema de arquivos do container pode continuar somente leitura.
+
+Para instalações administradas pelo terminal, na pasta que contém o Compose atualizado:
+
+```bash
+docker compose -f compose.casaos.yaml pull
+docker compose -f compose.casaos.yaml up -d --force-recreate
+docker compose -f compose.casaos.yaml logs --tail=50
+```
+
+Não apague as pastas de dados, chave ou backups ao recriar o serviço. Para fixar uma versão, substitua `latest` pela tag `sha-<commit completo>` exibida na publicação concluída. A velocidade do download não identifica uma imagem antiga: camadas inalteradas são reutilizadas.
+
+A inicialização repara os proprietários dos diretórios dedicados e dos arquivos conhecidos de SQLite, chave e marcador, sem recriar a chave existente. Depois testa criação/remoção de arquivo como UID/GID `10001`. Não aplica `chmod 777` nem altera recursivamente os dumps. Um marcador ausente em uma instalação existente continua sem ser recriado automaticamente.
+
+Se a montagem rejeitar `chown`, só é permitido continuar se o aplicativo já tiver acesso. Em compartilhamentos e filesystems que não aceitam proprietários Unix, ajuste as permissões/UID/GID na montagem do host para `10001`; mantenha SQLite e chave em disco local. Não há correção dentro do container para um volume que o host disponibilizou sem escrita.
+
+Para conferir a configuração efetiva, execute no servidor, a partir desta pasta:
+
+```bash
+sudo sh scripts/diagnose-casaos.sh baseguard-baseguard-1
+```
+
+O diagnóstico mostra imagem, usuário, capacidades, volumes, modo de acesso e filesystem, sem ler credenciais. Os testes de container do CI cobrem instalação nova, arquivos antigos pertencentes a root, preservação da chave, ausência de capacidades para `chown` e volumes inacessíveis/somente leitura.
 
 ### Publicação da imagem
 
