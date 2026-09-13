@@ -189,7 +189,7 @@ func InitDestination(path, name string) error {
 	if err := os.MkdirAll(path, 0700); err != nil {
 		return err
 	}
-	f, err := os.OpenFile(filepath.Join(path, ".baseguard-destination"), os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
+	f, err := os.OpenFile(filepath.Join(path, ".baseguard-destination"), os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
 	if err != nil {
 		return err
 	}
