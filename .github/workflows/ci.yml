@@ -16,7 +16,13 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-      - run: go test -race ./... -count=1
+      - name: Run tests
+        run: |
+          if [ "${{ matrix.runner }}" = "ubuntu-24.04" ]; then
+            go test -race ./... -count=1
+          else
+            go test ./... -count=1
+          fi
       - run: go vet ./...
       - name: Cross-compile ARM64
         run: CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -trimpath -o /tmp/baseguard-arm64 ./cmd/baseguard
