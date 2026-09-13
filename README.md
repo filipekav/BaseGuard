@@ -38,11 +38,11 @@ Após a publicação da imagem no GitHub Actions:
 2. Importe este arquivo (ou cole o conteúdo): **[compose.casaos.yaml](https://raw.githubusercontent.com/filipekav/BaseGuard/main/compose.casaos.yaml)**.
 3. Confira a porta externa `8080` e os diretórios em `/DATA`. Se a porta estiver ocupada, altere a porta do host e a porta da Web UI, mantendo a porta interna `8080`.
 4. Clique em **Instalar**. O CasaOS baixa `ghcr.io/filipekav/baseguard:latest`, escolhendo ARM64 ou AMD64 automaticamente.
-5. Abra `http://IP-DO-SERVIDOR:8080`. O usuário é **admin** e a senha inicial aleatória aparece nos logs do container. Troque-a em **Configurações**.
+5. Abra `http://IP-DO-SERVIDOR:18437`. O usuário é **admin** e a senha inicial aleatória aparece nos logs do container. Troque-a em **Configurações**.
 
 O primeiro início prepara automaticamente os diretórios dedicados de dados, chave e backups locais. O processo principal executa como UID/GID **10001**; o entrypoint usa root apenas para preparar esses três diretórios e depois abandona os privilégios. Não há modo privilegiado nem acesso ao Docker socket.
 
-Se preferir preencher o formulário manualmente, use imagem **`ghcr.io/filipekav/baseguard`**, tag **`latest`** e título **BaseGuard**. A importação do Compose é recomendada porque também configura volumes, permissões de inicialização, ambiente e healthcheck.
+Se preferir preencher o formulário manualmente, use imagem **`ghcr.io/filipekav/baseguard`**, tag **`latest`**, título **BaseGuard**, porta externa **18437** e porta interna **8080**. A importação do Compose é recomendada porque também configura volumes, permissões de inicialização, ambiente e healthcheck.
 
 O destino automático `/DATA/Backups/baseguard` é para **disco local**. Para NAS/USB use a configuração manual abaixo e desative `BASEGUARD_INIT_LOCAL_DESTINATION`; nunca inicialize automaticamente um compartilhamento que pode estar desmontado. Em instalações existentes, um marcador ausente não é recriado automaticamente.
 
