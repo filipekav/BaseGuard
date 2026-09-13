@@ -6,5 +6,5 @@ backups/
 secrets/
 .env
 *.test
+!Dockerfile.test
 coverage.out
-
