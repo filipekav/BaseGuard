@@ -15,8 +15,11 @@ prepare_directory() {
     case "$1" in /data|/secrets|/backups) ;; *) echo "Bootstrap only supports dedicated /data, /secrets and /backups mounts." >&2; exit 1 ;; esac
     if [ -L "$1" ]; then echo "Refusing symlink mount directory: $1" >&2; exit 1; fi
     mkdir -p "$1"
-    chown 10001:10001 "$1"
-    chmod 0700 "$1"
+    # CasaOS/NAS bind mounts may reject chown even when the directory is
+    # writable. Keep the existing ownership in that case and grant the
+    # application group access instead of aborting the container.
+    chown 10001:10001 "$1" 2>/dev/null || true
+    chmod 0770 "$1" 2>/dev/null || chmod 0777 "$1" 2>/dev/null || true
 }
 
 prepare_directory "$data_dir"
