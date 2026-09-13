@@ -1,6 +1,6 @@
 FROM --platform=$BUILDPLATFORM golang:1.27.1-bookworm AS build
 ARG TARGETOS=linux
-ARG TARGETARCH=arm64
+ARG TARGETARCH
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
