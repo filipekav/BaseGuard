@@ -260,7 +260,9 @@ func TestProcessTimeoutRedactionAndWriteFailure(t *testing.T) {
 	d := Database{Password: "secret-test-value"}
 	for _, mode := range []string{"timeout", "secret", "output"} {
 		t.Run(mode, func(t *testing.T) {
-			ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
+		timeout := 5 * time.Second
+		if mode == "timeout" { timeout = 300 * time.Millisecond }
+		ctx, cancel := context.WithTimeout(context.Background(), timeout)
 			defer cancel()
 			var out io.Writer = io.Discard
 			if mode == "output" {

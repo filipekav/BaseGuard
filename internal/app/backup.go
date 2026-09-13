@@ -62,7 +62,7 @@ func credentials(d Database) (env []string, options []string, cleanup func(), er
 		esc := func(s string) string { return strings.NewReplacer("\\", "\\\\", "\"", "\\\"").Replace(s) }
 		content = "[client]\npassword=\"" + esc(d.Password) + "\"\n"
 		tls := map[string]string{"disable": "DISABLED", "require": "REQUIRED", "verify-full": "VERIFY_IDENTITY"}[d.TLSMode]
-		options = []string{"--defaults-file=" + f.Name(), "--protocol=TCP", "--host=" + d.Host, "--port=" + strconv.Itoa(d.Port), "--user=" + d.Username, "--ssl-mode=" + tls, "--connect-timeout=15"}
+		options = []string{"--defaults-file=" + f.Name(), "--protocol=TCP", "--host=" + d.Host, "--port=" + strconv.Itoa(d.Port), "--user=" + d.Username, "--ssl-mode=" + tls}
 		if d.CAFile != "" {
 			options = append(options, "--ssl-ca="+d.CAFile)
 		} else if d.TLSMode == "verify-full" {
@@ -130,7 +130,7 @@ func (NativeExecutor) Check(ctx context.Context, d Database) (string, error) {
 	} else {
 		client = "mysqldump"
 		query := "SELECT VERSION(); SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=CONVERT(0x" + hex.EncodeToString([]byte(d.DBName)) + " USING utf8mb4) AND TABLE_TYPE='BASE TABLE' AND ENGINE <> 'InnoDB';"
-		err = command(ctx, d, "mysql", append(options, "--batch", "--skip-column-names", "--database="+d.DBName, "--execute="+query), env, &out)
+		err = command(ctx, d, "mysql", append(options, "--connect-timeout=15", "--batch", "--skip-column-names", "--database="+d.DBName, "--execute="+query), env, &out)
 	}
 	if err != nil {
 		return "", err
