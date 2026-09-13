@@ -1,0 +1,65 @@
+name: baseguard
+services:
+  baseguard:
+    image: baseguard:local
+    user: "10001:10001"
+    build:
+      context: .
+      args:
+        PG_MAJOR: "18"
+    ports:
+      - "${BASEGUARD_PORT:-8080}:8080"
+    environment:
+      BASEGUARD_DESTINATIONS: '{"Principal":"/backups"}'
+      BASEGUARD_SECURE_COOKIES: "${BASEGUARD_SECURE_COOKIES:-false}"
+    volumes:
+      - type: bind
+        source: ${BASEGUARD_HOME:-/DATA/AppData/baseguard}/data
+        target: /data
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${BASEGUARD_HOME:-/DATA/AppData/baseguard}/secrets
+        target: /secrets
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${BASEGUARD_BACKUPS:-/DATA/Backups/baseguard}
+        target: /backups
+        bind:
+          create_host_path: false
+    restart: unless-stopped
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    stop_grace_period: 30s
+    healthcheck:
+      test: ["CMD", "baseguard", "healthcheck"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+x-casaos:
+  id: org.baseguard.app
+  architectures:
+    - arm64
+    - amd64
+  main: baseguard
+  port_map: "8080"
+  scheme: http
+  index: /
+  title:
+    en_us: BaseGuard
+    pt_br: BaseGuard
+  tagline:
+    en_us: Simple PostgreSQL and MySQL backups
+    pt_br: Backups simples de PostgreSQL e MySQL
+  category: Utilities
+  description:
+    pt_br: Painel local de backup com agendamento, retenção e histórico.
+    en_us: Local database backups with scheduling, retention and history.

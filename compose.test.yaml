@@ -1,0 +1,36 @@
+name: baseguard-integration
+services:
+  postgres:
+    image: postgres:18
+    environment:
+      POSTGRES_PASSWORD: integration-only-password
+    tmpfs:
+      - /var/lib/postgresql
+    healthcheck:
+      test: ["CMD", "pg_isready", "-h", "127.0.0.1", "-U", "postgres"]
+      interval: 2s
+      timeout: 3s
+      retries: 40
+  mysql:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: integration-only-password
+      MYSQL_ROOT_HOST: "%"
+    tmpfs:
+      - /var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "MYSQL_PWD=integration-only-password mysql -h 127.0.0.1 -u root -e 'SELECT 1'"]
+      interval: 3s
+      timeout: 5s
+      retries: 60
+  tests:
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+    environment:
+      BASEGUARD_INTEGRATION: "1"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mysql:
+        condition: service_healthy

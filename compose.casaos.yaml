@@ -1,0 +1,68 @@
+name: baseguard
+services:
+  baseguard:
+    image: ghcr.io/filipekav/baseguard:latest
+    ports:
+      - "8080:8080"
+    environment:
+      BASEGUARD_DESTINATIONS: '{"Principal":"/backups"}'
+      BASEGUARD_SECURE_COOKIES: "false"
+      BASEGUARD_INIT_LOCAL_DESTINATION: "true"
+    volumes:
+      - type: bind
+        source: /DATA/AppData/baseguard/data
+        target: /data
+        bind:
+          create_host_path: true
+      - type: bind
+        source: /DATA/AppData/baseguard/secrets
+        target: /secrets
+        bind:
+          create_host_path: true
+      - type: bind
+        source: /DATA/Backups/baseguard
+        target: /backups
+        bind:
+          create_host_path: true
+    restart: unless-stopped
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - FOWNER
+      - DAC_OVERRIDE
+      - SETUID
+      - SETGID
+    security_opt:
+      - no-new-privileges:true
+    stop_grace_period: 30s
+    healthcheck:
+      test: ["CMD", "baseguard", "healthcheck"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+x-casaos:
+  id: org.baseguard.app
+  architectures:
+    - arm64
+    - amd64
+  main: baseguard
+  port_map: "8080"
+  scheme: http
+  index: /
+  icon: https://raw.githubusercontent.com/filipekav/BaseGuard/main/internal/app/web/icon.svg
+  title:
+    en_us: BaseGuard
+    pt_br: BaseGuard
+  tagline:
+    en_us: Simple PostgreSQL and MySQL backups
+    pt_br: Backups simples de PostgreSQL e MySQL
+  category: Utilities
+  description:
+    pt_br: Painel local de backup com agendamento, retenção e histórico.
+    en_us: Local database backups with scheduling, retention and history.

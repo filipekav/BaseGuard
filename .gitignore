@@ -1,0 +1,10 @@
+.tools/
+.cache/
+bin/
+data/
+backups/
+secrets/
+.env
+*.test
+coverage.out
+

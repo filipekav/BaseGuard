@@ -1,0 +1,10 @@
+.git
+.tools
+.cache
+bin
+data
+secrets
+backups
+.env
+*.test
+coverage.out
