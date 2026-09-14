@@ -73,6 +73,10 @@ func credentials(d Database) (env []string, options []string, cleanup func(), er
 			}
 		} else {
 			options = append(options, "--ssl-mode="+tls)
+			if d.TLSMode == "disable" {
+				// caching_sha2_password needs RSA exchange when TLS is explicitly disabled.
+				options = append(options, "--get-server-public-key")
+			}
 		}
 		if d.CAFile != "" {
 			options = append(options, "--ssl-ca="+d.CAFile)

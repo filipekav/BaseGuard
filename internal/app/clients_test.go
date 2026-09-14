@@ -91,6 +91,9 @@ func TestTLSArgumentsByFamily(t *testing.T) {
 				t.Fatal(err)
 			}
 			joined := strings.Join(args, " ")
+			if strings.Contains(joined, "--get-server-public-key") != (engine == "mysql" && mode == "disable") {
+				t.Fatalf("RSA key retrieval must be limited to MySQL with TLS explicitly disabled: %s", joined)
+			}
 			if strings.Contains(joined, d.Password) {
 				t.Fatal("credential leaked")
 			}

@@ -66,6 +66,7 @@ func TestIntegrationRestore(t *testing.T) {
 			}
 			// Readiness is checked using the same native client used by the application.
 			ready := false
+			var readinessErr error
 			for attempt := 0; attempt < 90; attempt++ {
 				env, args, cleanup, e := credentials(admin)
 				if e != nil {
@@ -77,6 +78,7 @@ func TestIntegrationRestore(t *testing.T) {
 					args = append(args, "--connect-timeout=2", "--database="+admin.DBName, "--execute=SELECT 1")
 				}
 				e = command(ctx, admin, profile.binary(profile.SQL), args, env, io.Discard)
+				readinessErr = e
 				cleanup()
 				if e == nil {
 					ready = true
@@ -85,7 +87,7 @@ func TestIntegrationRestore(t *testing.T) {
 				time.Sleep(2 * time.Second)
 			}
 			if !ready {
-				t.Fatal("database did not become ready")
+				t.Fatalf("database did not become ready: %v", readinessErr)
 			}
 			// PostgreSQL forbids CREATE DATABASE in a multi-statement transaction.
 			for _, name := range []string{"fixture", "restored"} {
