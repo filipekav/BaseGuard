@@ -1,0 +1,182 @@
+{
+  "format": 1,
+  "images": [
+    {
+      "image": "postgres:12.22-bookworm",
+      "digest": "sha256:2f2a8c2a7d10862e7fba2602e304523554f9df8244c632dafe2628ccb398fb5c",
+      "architectures": [
+        "amd64",
+        "arm",
+        "arm64",
+        "386",
+        "mips64le",
+        "ppc64le",
+        "s390x"
+      ],
+      "version": "12.22"
+    },
+    {
+      "image": "postgres:13.23-bookworm",
+      "digest": "sha256:f0cffcc050a9f1f3c78a9968e221badc1cdd02e2ae15b1de9b12bee1ba5ea2db",
+      "architectures": [
+        "amd64",
+        "arm",
+        "arm64",
+        "386",
+        "mips64le",
+        "ppc64le",
+        "s390x"
+      ],
+      "version": "13.23-bookworm"
+    },
+    {
+      "image": "postgres:14.24-bookworm",
+      "digest": "sha256:185c7c7a36448bcb7e0d3d6aef97ac973ddfae0cc4fa29581ce4e789988a74b1",
+      "architectures": [
+        "amd64",
+        "arm",
+        "arm64",
+        "386",
+        "ppc64le"
+      ],
+      "version": "14.24-bookworm"
+    },
+    {
+      "image": "postgres:15.19-bookworm",
+      "digest": "sha256:5d1d70e254e3c5d7d76847a9deebb18478cd518df37abf6b278d4bdb1fe5d96c",
+      "architectures": [
+        "amd64",
+        "arm",
+        "arm64",
+        "386",
+        "ppc64le"
+      ],
+      "version": "15.19-bookworm"
+    },
+    {
+      "image": "postgres:16.15-bookworm",
+      "digest": "sha256:bb3e1a57e5407e0a5280b4211980a5e537f4abd234a87014ac979849a78dd825",
+      "architectures": [
+        "amd64",
+        "arm",
+        "arm64",
+        "386",
+        "ppc64le"
+      ],
+      "version": "16.15-bookworm"
+    },
+    {
+      "image": "postgres:17.11-bookworm",
+      "digest": "sha256:051f7b7b3abdd564d5d1bd1e8c4b9c1b6e77087d1dd22020ede611c096a272e0",
+      "architectures": [
+        "amd64",
+        "arm",
+        "arm64",
+        "386",
+        "ppc64le"
+      ],
+      "version": "17.11-bookworm"
+    },
+    {
+      "image": "postgres:18.6-bookworm",
+      "digest": "sha256:1c59e2c3c818eaa0f0628f695b36e7c9e362d6b219b36a54a32df645cbd7e1af",
+      "architectures": [
+        "amd64",
+        "arm",
+        "arm64",
+        "386",
+        "ppc64le"
+      ],
+      "version": "18.6-bookworm"
+    },
+    {
+      "image": "mysql:8.0",
+      "digest": "sha256:7dcddc01f13bab2f15cde676d44d01f61fc9f99fe7785e86196dfc07d358ae2b",
+      "architectures": [
+        "amd64",
+        "arm64"
+      ],
+      "version": "8.0.46"
+    },
+    {
+      "image": "mysql:8.4",
+      "digest": "sha256:85b9bf2e29cf836ecb8c2a15a935d4ba0c606631dff1dd79531a11983c638f2a",
+      "architectures": [
+        "amd64",
+        "arm64"
+      ],
+      "version": "8.4.11"
+    },
+    {
+      "image": "mysql:5.7.42",
+      "digest": "sha256:2eabad08824e3120dbec9096c276e3956e1922636c06fbb383ae9ea9c499bf43",
+      "architectures": [
+        "amd64"
+      ],
+      "version": null
+    },
+    {
+      "image": "mysql:5.7.44",
+      "digest": "sha256:4bc6bc963e6d8443453676cae56536f4b8156d78bae03c0145cbe47c2aad73bb",
+      "architectures": [
+        "amd64"
+      ],
+      "version": "5.7.44"
+    },
+    {
+      "image": "mariadb:10.6",
+      "digest": "sha256:553351e202c5f01c9e703d7d1d2b037a0aedb43c4fed79b3615d9183655f02c5",
+      "architectures": [
+        "amd64",
+        "arm64",
+        "ppc64le",
+        "s390x"
+      ],
+      "version": "10.6.28-jammy"
+    },
+    {
+      "image": "mariadb:10.11",
+      "digest": "sha256:07c0aaff7396b74cb7975cba78257178d188e30f531a5db2b617c48beef13c41",
+      "architectures": [
+        "amd64",
+        "arm64",
+        "ppc64le",
+        "s390x"
+      ],
+      "version": "10.11.19-jammy"
+    },
+    {
+      "image": "mariadb:11.4",
+      "digest": "sha256:80494b9810694179889f7281ec44ca928241df577159c0356a1070e2e94616a1",
+      "architectures": [
+        "amd64",
+        "arm64",
+        "ppc64le",
+        "s390x"
+      ],
+      "version": "11.4.13-noble"
+    },
+    {
+      "image": "mariadb:11.8",
+      "digest": "sha256:2d2f4095530294735a857cfe22bb101e19b0849b416911c796ec4aa81b164a62",
+      "architectures": [
+        "amd64",
+        "arm64",
+        "ppc64le",
+        "s390x"
+      ],
+      "version": "11.8.9-noble"
+    },
+    {
+      "image": "mariadb:12.3",
+      "digest": "sha256:ab1c3dd381940233af12512b97d47b508fd3a0f17fbe3ba388739b7bc17cbc0b",
+      "architectures": [
+        "amd64",
+        "arm64",
+        "ppc64le",
+        "s390x"
+      ],
+      "version": "12.3.3-noble"
+    }
+  ]
+}

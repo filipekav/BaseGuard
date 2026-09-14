@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -127,9 +128,25 @@ func (w *Worker) execute(parent context.Context, run Run) {
 	if err == nil {
 		ctx, cancel := context.WithTimeout(parent, time.Duration(d.Timeout)*time.Minute)
 		defer cancel()
-		_, err = w.Executor.Check(ctx, d)
+		ex := w.Executor
+		if native, ok := ex.(interface {
+			Prepare(context.Context, Database) (preparedBackup, error)
+		}); ok {
+			var prepared preparedBackup
+			prepared, err = native.Prepare(ctx, d)
+			if err == nil {
+				var info []byte
+				info, err = json.Marshal(prepared.Info)
+				if err == nil {
+					_, err = w.Store.DB.Exec("UPDATE runs SET client_info=? WHERE id=?", string(info), run.ID)
+				}
+				ex = prepared
+			}
+		} else {
+			_, err = ex.Check(ctx, d)
+		}
 		if err == nil {
-			err = w.backup(ctx, d, run)
+			err = w.backupWithExecutor(ctx, d, run, ex)
 		}
 	}
 	if err != nil {
@@ -142,6 +159,10 @@ func (w *Worker) execute(parent context.Context, run Run) {
 }
 
 func (w *Worker) backup(ctx context.Context, d Database, run Run) error {
+	return w.backupWithExecutor(ctx, d, run, w.Executor)
+}
+
+func (w *Worker) backupWithExecutor(ctx context.Context, d Database, run Run, ex Executor) error {
 	r, err := openDestination(w.Destinations, d.Destination)
 	if err != nil {
 		return err
@@ -152,7 +173,7 @@ func (w *Worker) backup(ctx context.Context, d Database, run Run) error {
 		return err
 	}
 	ext := ".dump"
-	if d.Engine == "mysql" {
+	if d.Engine != "postgres" {
 		ext = ".sql.gz"
 	}
 	p := filepath.Join(sub, fmt.Sprintf("%s-%d%s", time.Unix(run.Created, 0).UTC().Format("20060102T150405Z"), run.ID, ext))
@@ -160,7 +181,7 @@ func (w *Worker) backup(ctx context.Context, d Database, run Run) error {
 	if err != nil {
 		return err
 	}
-	size, sum, err := writeBackup(ctx, r, p, d, w.Executor)
+	size, sum, err := writeBackup(ctx, r, p, d, ex)
 	if err != nil {
 		return err
 	}

@@ -1,36 +1,37 @@
 name: baseguard-integration
 services:
-  postgres:
-    image: postgres:18
+  db:
+    image: ${BASEGUARD_TEST_IMAGE:-mysql:8.0@sha256:7dcddc01f13bab2f15cde676d44d01f61fc9f99fe7785e86196dfc07d358ae2b}
+    platform: ${BASEGUARD_TEST_PLATFORM:-linux/amd64}
+    entrypoint: ["/bin/sh", "/baseguard-test-server.sh"]
+    volumes:
+      - ./scripts/test-server.sh:/baseguard-test-server.sh:ro
+      - ./.cache/test-certs:/certs:ro
+    networks:
+      default:
+        aliases: [wronghost]
     environment:
+      BASEGUARD_TEST_ENGINE: "${BASEGUARD_TEST_ENGINE:-mysql}"
+      BASEGUARD_TEST_NO_TLS: "${BASEGUARD_TEST_NO_TLS:-0}"
       POSTGRES_PASSWORD: integration-only-password
-    tmpfs:
-      - /var/lib/postgresql
-    healthcheck:
-      test: ["CMD", "pg_isready", "-h", "127.0.0.1", "-U", "postgres"]
-      interval: 2s
-      timeout: 3s
-      retries: 40
-  mysql:
-    image: mysql:8.0
-    environment:
       MYSQL_ROOT_PASSWORD: integration-only-password
       MYSQL_ROOT_HOST: "%"
+      MARIADB_ROOT_PASSWORD: integration-only-password
+      MARIADB_ROOT_HOST: "%"
     tmpfs:
+      - /var/lib/postgresql
       - /var/lib/mysql
-    healthcheck:
-      test: ["CMD-SHELL", "MYSQL_PWD=integration-only-password mysql -h 127.0.0.1 -u root -e 'SELECT 1'"]
-      interval: 3s
-      timeout: 5s
-      retries: 60
   tests:
     build:
       context: .
       dockerfile: Dockerfile.test
     environment:
       BASEGUARD_INTEGRATION: "1"
+      BASEGUARD_TEST_NO_TLS: "${BASEGUARD_TEST_NO_TLS:-0}"
+      BASEGUARD_TEST_ENGINE: "${BASEGUARD_TEST_ENGINE:-mysql}"
+      BASEGUARD_TEST_SERIES: "${BASEGUARD_TEST_SERIES:-8.0}"
+    volumes:
+      - ./.cache/test-certs:/certs:ro
     depends_on:
-      postgres:
-        condition: service_healthy
-      mysql:
-        condition: service_healthy
+      db:
+        condition: service_started

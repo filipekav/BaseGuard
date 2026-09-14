@@ -1,6 +1,6 @@
 # BaseGuard
 
-Painel local para backups completos de **PostgreSQL e MySQL**, com interface em português, agendamento, fila persistente, retenção e download. Um processo Go, SQLite e clientes oficiais de dump, em um container ARM64 ou AMD64.
+Painel local para backups completos de **PostgreSQL, MySQL e MariaDB**, com interface em português, agendamento, fila persistente, retenção e download. Um processo Go, SQLite e clientes oficiais de dump, em um container ARM64 ou AMD64.
 
 ## O que está incluído
 
@@ -8,25 +8,31 @@ Painel local para backups completos de **PostgreSQL e MySQL**, com interface em 
 - Cadastro e edição de conexão, teste de acesso/versão, TLS e CA personalizada.
 - Agendamento diário, semanal ou a cada N horas. Padrão: 02h em `America/Sao_Paulo`, desativado até você ativar.
 - Um backup por vez. Fila em SQLite e no máximo um trabalho pendente por banco.
-- PostgreSQL `.dump` customizado com compressão; MySQL `.sql.gz` com compressão rápida.
+- PostgreSQL `.dump` customizado com compressão; MySQL/MariaDB `.sql.gz` com compressão rápida.
 - Retenção por banco (padrão: 7 arquivos), timeout (padrão: 120 minutos), histórico das últimas 200 execuções na tela e checksum SHA-256.
 - Arquivo `.partial` durante a execução. O download só é liberado depois de sucesso, sincronização e renomeação do arquivo.
 - Credenciais cifradas com AES-256-GCM; chave mestra em volume separado. Senhas dos bancos não vão nos argumentos de processos ou nos logs.
 
 ## Compatibilidade
 
-A imagem padrão usa Ubuntu 24.04, **cliente PostgreSQL 18 e cliente MySQL 8.0**. O teste de conexão e cada backup verificam a compatibilidade antes do dump:
+A imagem inclui os clientes de todas as séries abaixo. A versão é detectada a cada teste de conexão e backup; não é necessário escolher ferramentas no CasaOS. A publicação fica bloqueada enquanto os testes de restauração de qualquer perfil falharem.
 
-| Servidor | Comportamento da imagem padrão |
-|---|---|
-| PostgreSQL 14–18 | Aceito pelo verificador; use a suíte de restauração para homologar suas versões e extensões |
-| PostgreSQL mais novo que o cliente | Recusado; atualize `PG_MAJOR` no build e valide a restauração |
-| MySQL 8.0, tabelas InnoDB | Aceito pelo verificador |
-| MySQL de outra série, como 8.4 | Recusado; exige imagem adaptada com cliente da mesma série e teste de recuperação |
-| MySQL com tabelas fora do InnoDB | Recusado para evitar anunciar consistência que uma transação não garante |
-| MariaDB | Fora do escopo desta versão |
+| Servidor | Cliente selecionado | Recuperação validada pelo CI |
+|---|---|---|
+| PostgreSQL 12, 13, 14, 15, 16, 17, 18 | `pg_dump` da mesma versão principal | Banco vazio da mesma série, com `pg_restore` correspondente |
+| MySQL 5.7 | MySQL 8.0, sem estatísticas de colunas/GTID | MySQL 5.7.42 e 5.7.44 |
+| MySQL 8.0 / 8.4 | Cliente da mesma série | Banco vazio da mesma série |
+| MariaDB 10.6, 10.11, 11.4, 11.8, 12.3 | `mariadb-dump` da mesma série | Banco vazio da mesma série, usando `mariadb` |
+| Outras séries | Recusadas | Exigem ampliação do catálogo e testes |
+| MySQL/MariaDB com tabelas fora do InnoDB | Recusados | Não há modo de backup com bloqueio de tabelas nesta versão |
 
-**As versões dos seus servidores ainda precisam ser confirmadas.** A checagem de versão não substitui homologação de extensões, permissões e restauração. Evite alterações de estrutura (DDL) durante dumps MySQL. Tenha um usuário dedicado com permissões suficientes para tabelas, views, triggers, rotinas e eventos; o backup falha se faltar permissão.
+PostgreSQL 12/13 e MySQL 5.7/MariaDB 10.6 recebem identificação de série legada. Compatibilidade do BaseGuard não significa manutenção do fabricante. Não há promessa de migração entre séries ou entre MySQL e MariaDB. Extensões e plugins de autenticação adicionais exigem homologação específica; os testes cobrem autenticação por senha dos servidores oficiais.
+
+As fontes e digests estão em `clients.lock.json`. O build extrai somente ferramentas de cliente e dependências de imagens oficiais fixadas, isolando bibliotecas por perfil. Nenhum servidor ou compilador é instalado na imagem final. A imagem é maior, mas o uso não exige downloads extras nem acesso ao Docker socket.
+
+Cada execução nova registra mecanismo, versão do servidor, versão do cliente e perfil nos detalhes do histórico. A migração automática do SQLite para versão 2 preserva os cadastros e as credenciais; registros anteriores mostram “Versão não registrada”. Para voltar a um BaseGuard anterior à migração, restaure a cópia do diretório de dados feita antes de atualizar.
+
+Evite DDL durante backups MySQL/MariaDB. O usuário de backup deve ter acesso a todos os objetos desejados, incluindo views, triggers, rotinas e eventos; objetos ocultos pelas permissões não podem ser inventariados integralmente por um usuário restrito.
 
 ## Instalação no Linux / CasaOS
 
@@ -176,12 +182,16 @@ pg_restore --exit-on-error --no-owner --no-privileges \
 
 As opções acima ignoram proprietários e ACLs durante a recuperação. Se precisa preservá-los, recrie previamente as roles necessárias e omita essas opções. Instale também as extensões exigidas pelo banco.
 
-MySQL, com um cliente da mesma série e um banco vazio já criado:
+MySQL, com o cliente registrado no histórico e um banco vazio da mesma série já criado:
 
 ```bash
 set -o pipefail
 gzip -dc /caminho/backup.sql.gz | mysql --defaults-extra-file=/caminho/restore.cnf banco_restaurado
 ```
+
+Para MariaDB, use `mariadb` da série registrada no histórico no lugar de `mysql`. Preserve o cabeçalho de sandbox do dump; clientes MySQL ou MariaDB antigos podem não reconhecer esse comando. Para PostgreSQL use o `pg_restore` da versão principal registrada.
+
+Os executáveis incluídos estão em `/opt/baseguard/clients/<mecanismo>-<série>/bin/` (para MySQL 5.7, o diretório é `mysql-8.0`). Os comandos de restauração são procedimentos manuais, fora do painel.
 
 O arquivo `restore.cnf` deve conter a conexão na seção `[client]`, com permissões `0600`. Não passe a senha na linha de comando. Dumps incluem definições de rotinas, eventos e triggers; a restauração pode exigir os usuários `DEFINER` originais e privilégios específicos. A checagem SHA-256 detecta alteração do arquivo; confirmar recuperação exige restaurar e conferir dados e objetos.
 
@@ -189,6 +199,7 @@ O arquivo `restore.cnf` deve conter a conexão na seção `[client]`, com permis
 
 | Variável | Padrão | Uso |
 |---|---|---|
+| `BASEGUARD_CLIENTS_DIR` | `/opt/baseguard/clients` | Raiz dos clientes isolados; configuração administrativa, não um campo do painel |
 | `BASEGUARD_LISTEN` | `:8080` | Endereço HTTP dentro do container |
 | `BASEGUARD_DATA_DIR` | `/data` | SQLite e bloqueio de instância |
 | `BASEGUARD_KEY_FILE` | `/secrets/master.key` | Chave de 32 bytes gerada no primeiro início |
@@ -212,17 +223,17 @@ go vet ./...
 CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -trimpath -o bin/baseguard ./cmd/baseguard
 ```
 
-Para executar fora do container, defina diretórios absolutos locais em `BASEGUARD_DATA_DIR`, `BASEGUARD_KEY_FILE` e `BASEGUARD_DESTINATIONS`. Instale `psql`, `pg_dump`, `pg_restore`, `mysql` e `mysqldump` no PATH. `go run ./cmd/baseguard` inicia o painel. No container, esses clientes já estão incluídos.
+Para executar fora do container, defina diretórios absolutos locais em `BASEGUARD_DATA_DIR`, `BASEGUARD_KEY_FILE` e `BASEGUARD_DESTINATIONS`. Disponibilize os clientes nos diretórios de perfil indicados acima e ajuste `BASEGUARD_CLIENTS_DIR`. `go run ./cmd/baseguard` inicia o painel. No container, esses clientes já estão incluídos.
 
 Testes de integração **somente com bancos descartáveis**:
 
 ```bash
 docker compose build
-docker compose -f compose.test.yaml up --build --abort-on-container-exit --exit-code-from tests
+python3 scripts/test-matrix.py
 docker compose -f compose.test.yaml down -v
 ```
 
-A suíte cria serviços isolados sem portas publicadas, gera tabelas, dados, views, rotinas, triggers e evento MySQL, produz dumps usando o executor real e restaura em outros bancos. Também rejeita credenciais erradas e tabelas MyISAM. O processo de teste sai com erro se dados/objetos não forem recuperados. O comando `down -v` aplica-se apenas ao projeto descartável `baseguard-integration`.
+O script exige Python 3, OpenSSL, Docker Compose e, no ARM64, emulação AMD64 para os servidores MySQL 5.7. Gera certificados descartáveis em `.cache/test-certs`, executa as 16 imagens de servidor fixadas no manifesto, uma por vez, e remove seus volumes após cada caso. Os clientes e o aplicativo rodam nativamente em ambas as arquiteturas. A suíte cria serviços isolados sem portas publicadas, gera tabelas, dados, views, rotinas, triggers e evento MySQL, produz dumps usando o executor real e restaura em outros bancos. Também rejeita credenciais erradas e tabelas MyISAM. O processo de teste sai com erro se dados/objetos não forem recuperados. O comando `down -v` aplica-se apenas ao projeto descartável `baseguard-integration`.
 
 Os testes locais cobrem autenticação, CSRF, persistência, criptografia, deduplicação, recuperação, retenção, falha de escrita, timeout, proteção de caminhos e downloads. A suíte de integração é ignorada no `go test` comum e habilitada apenas pelo Compose de testes.
 

@@ -21,6 +21,7 @@ type Database struct {
 }
 
 type Run struct {
+	ClientInfo                                                      ConnectionInfo
 	ID, DatabaseID                                                  int64
 	DatabaseName, Status, Trigger, Destination, Path, Error, SHA256 string
 	Created, Started, Finished, Size                                int64
@@ -84,7 +85,7 @@ func (d Database) Validate(destinations map[string]string) error {
 	if strings.Contains(d.DBName, "=") || strings.HasPrefix(d.DBName, "postgres://") || strings.HasPrefix(d.DBName, "postgresql://") {
 		return fmt.Errorf("informe apenas o nome do banco, sem string de conexão")
 	}
-	if d.Engine != "postgres" && d.Engine != "mysql" {
+	if d.Engine != "postgres" && d.Engine != "mysql" && d.Engine != "mariadb" {
 		return fmt.Errorf("mecanismo inválido")
 	}
 	if d.Port < 1 || d.Port > 65535 {

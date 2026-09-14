@@ -5,8 +5,6 @@ services:
     user: "10001:10001"
     build:
       context: .
-      args:
-        PG_MAJOR: "18"
     ports:
       - "${BASEGUARD_PORT:-8080}:8080"
     environment:

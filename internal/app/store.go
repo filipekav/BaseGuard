@@ -31,7 +31,7 @@ func OpenStore(path, keypath string) (*Store, error) {
 	db.SetMaxOpenConns(1)
 	s := &Store{DB: db, Key: key}
 	var schemaVersion int
-	if err = db.QueryRow("PRAGMA user_version").Scan(&schemaVersion); err != nil || schemaVersion > 1 {
+	if err = db.QueryRow("PRAGMA user_version").Scan(&schemaVersion); err != nil || schemaVersion > 2 {
 		db.Close()
 		if err != nil {
 			return nil, err
@@ -43,11 +43,26 @@ CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY,value TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS databases (id INTEGER PRIMARY KEY AUTOINCREMENT, config TEXT NOT NULL, enabled INTEGER NOT NULL DEFAULT 0, next_run INTEGER NOT NULL DEFAULT 0);
 CREATE TABLE IF NOT EXISTS runs (id INTEGER PRIMARY KEY AUTOINCREMENT,database_id INTEGER NOT NULL, database_name TEXT NOT NULL,status TEXT NOT NULL,trigger TEXT NOT NULL,destination TEXT NOT NULL DEFAULT '',path TEXT NOT NULL DEFAULT '',error TEXT NOT NULL DEFAULT '',sha256 TEXT NOT NULL DEFAULT '',created INTEGER NOT NULL,started INTEGER NOT NULL DEFAULT 0,finished INTEGER NOT NULL DEFAULT 0,size INTEGER NOT NULL DEFAULT 0);
 CREATE UNIQUE INDEX IF NOT EXISTS one_active_run ON runs(database_id) WHERE status IN ('queued','running');
-CREATE TABLE IF NOT EXISTS sessions (token TEXT PRIMARY KEY,csrf TEXT NOT NULL,expires INTEGER NOT NULL);
-PRAGMA user_version=1;`)
+CREATE TABLE IF NOT EXISTS sessions (token TEXT PRIMARY KEY,csrf TEXT NOT NULL,expires INTEGER NOT NULL);`)
 	if err != nil {
 		db.Close()
 		return nil, err
+	}
+	if schemaVersion < 2 {
+		tx, e := db.Begin()
+		if e != nil {
+			db.Close()
+			return nil, e
+		}
+		if _, e = tx.Exec("ALTER TABLE runs ADD COLUMN client_info TEXT NOT NULL DEFAULT '{}'; PRAGMA user_version=2;"); e != nil {
+			tx.Rollback()
+			db.Close()
+			return nil, e
+		}
+		if e = tx.Commit(); e != nil {
+			db.Close()
+			return nil, e
+		}
 	}
 	_ = os.Chmod(path, 0600)
 	return s, nil
@@ -154,11 +169,15 @@ func (s *Store) Enqueue(d Database, trigger string, now time.Time) (bool, error)
 	return n > 0, err
 }
 
-const runColumns = "id,database_id,database_name,status,trigger,destination,path,error,sha256,created,started,finished,size"
+const runColumns = "id,database_id,database_name,status,trigger,destination,path,error,sha256,created,started,finished,size,client_info"
 
 func scanRun(row interface{ Scan(...any) error }) (Run, error) {
 	var r Run
-	err := row.Scan(&r.ID, &r.DatabaseID, &r.DatabaseName, &r.Status, &r.Trigger, &r.Destination, &r.Path, &r.Error, &r.SHA256, &r.Created, &r.Started, &r.Finished, &r.Size)
+	var info string
+	err := row.Scan(&r.ID, &r.DatabaseID, &r.DatabaseName, &r.Status, &r.Trigger, &r.Destination, &r.Path, &r.Error, &r.SHA256, &r.Created, &r.Started, &r.Finished, &r.Size, &info)
+	if err == nil {
+		err = json.Unmarshal([]byte(info), &r.ClientInfo)
+	}
 	return r, err
 }
 func (s *Store) Runs() ([]Run, error) {

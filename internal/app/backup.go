@@ -12,7 +12,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"regexp"
 	"runtime"
 	"strconv"
 	"strings"
@@ -55,14 +54,26 @@ func credentials(d Database) (env []string, options []string, cleanup func(), er
 		if d.CAFile != "" {
 			env = append(env, "PGSSLROOTCERT="+d.CAFile)
 		} else if d.TLSMode == "verify-full" {
-			env = append(env, "PGSSLROOTCERT=system")
+			env = append(env, "PGSSLROOTCERT=/etc/ssl/certs/ca-certificates.crt")
 		}
 		options = []string{"--host=" + d.Host, "--port=" + strconv.Itoa(d.Port), "--username=" + d.Username, "--no-password"}
 	} else {
 		esc := func(s string) string { return strings.NewReplacer("\\", "\\\\", "\"", "\\\"").Replace(s) }
 		content = "[client]\npassword=\"" + esc(d.Password) + "\"\n"
 		tls := map[string]string{"disable": "DISABLED", "require": "REQUIRED", "verify-full": "VERIFY_IDENTITY"}[d.TLSMode]
-		options = []string{"--defaults-file=" + f.Name(), "--protocol=TCP", "--host=" + d.Host, "--port=" + strconv.Itoa(d.Port), "--user=" + d.Username, "--ssl-mode=" + tls}
+		options = []string{"--defaults-file=" + f.Name(), "--protocol=TCP", "--host=" + d.Host, "--port=" + strconv.Itoa(d.Port), "--user=" + d.Username}
+		if d.Engine == "mariadb" {
+			switch d.TLSMode {
+			case "disable":
+				options = append(options, "--skip-ssl")
+			case "require":
+				options = append(options, "--ssl", "--disable-ssl-verify-server-cert")
+			case "verify-full":
+				options = append(options, "--ssl", "--ssl-verify-server-cert")
+			}
+		} else {
+			options = append(options, "--ssl-mode="+tls)
+		}
 		if d.CAFile != "" {
 			options = append(options, "--ssl-ca="+d.CAFile)
 		} else if d.TLSMode == "verify-full" {
@@ -88,7 +99,7 @@ func command(ctx context.Context, d Database, name string, args []string, env []
 	var stderr limitedBuffer
 	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {
-		if errors.Is(err, exec.ErrNotFound) {
+		if errors.Is(err, exec.ErrNotFound) || errors.Is(err, os.ErrNotExist) {
 			return fmt.Errorf("cliente %s não instalado; confira a imagem Docker e as versões suportadas", name)
 		}
 		if ctx.Err() != nil {
@@ -103,81 +114,24 @@ func command(ctx context.Context, d Database, name string, args []string, env []
 	return nil
 }
 
-var versionRE = regexp.MustCompile(`([0-9]+)\.([0-9]+)`)
-
-func version(s string) (int, int, error) {
-	m := versionRE.FindStringSubmatch(s)
-	if m == nil {
-		return 0, 0, fmt.Errorf("versão não reconhecida: %s", s)
-	}
-	a, _ := strconv.Atoi(m[1])
-	b, _ := strconv.Atoi(m[2])
-	return a, b, nil
-}
-
-func (NativeExecutor) Check(ctx context.Context, d Database) (string, error) {
-	env, options, cleanup, err := credentials(d)
-	if err != nil {
-		return "", err
-	}
-	defer cleanup()
-	var out limitedBuffer
-	client := "pg_dump"
-	if d.Engine == "postgres" {
-		// Positional dbname avoids libpq interpreting '=' as connection options (rejected in Validate).
-		args := append(options, "--no-psqlrc", "--tuples-only", "--no-align", "--dbname="+d.DBName, "--command=SHOW server_version")
-		err = command(ctx, d, "psql", args, env, &out)
-	} else {
-		client = "mysqldump"
-		query := "SELECT VERSION(); SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=CONVERT(0x" + hex.EncodeToString([]byte(d.DBName)) + " USING utf8mb4) AND TABLE_TYPE='BASE TABLE' AND ENGINE <> 'InnoDB';"
-		err = command(ctx, d, "mysql", append(options, "--connect-timeout=15", "--batch", "--skip-column-names", "--database="+d.DBName, "--execute="+query), env, &out)
-	}
-	if err != nil {
-		return "", err
-	}
-	lines := strings.Split(strings.TrimSpace(out.String()), "\n")
-	server := strings.TrimSpace(lines[0])
-	if strings.Contains(strings.ToLower(server), "mariadb") {
-		return "", fmt.Errorf("MariaDB não está homologado nesta versão; use um servidor MySQL")
-	}
-	if d.Engine == "mysql" && (len(lines) != 2 || strings.TrimSpace(lines[1]) != "0") {
-		return "", fmt.Errorf("banco contém tabelas fora do InnoDB ou não foi possível verificar os mecanismos; backup consistente recusado")
-	}
-	var clientOut limitedBuffer
-	if err = command(ctx, d, client, []string{"--version"}, env, &clientOut); err != nil {
-		return "", err
-	}
-	sa, sb, err := version(server)
-	if err != nil {
-		return "", err
-	}
-	ca, cb, err := version(clientOut.String())
-	if err != nil {
-		return "", err
-	}
-	if d.Engine == "postgres" && (sa < 14 || sa > ca) {
-		return "", fmt.Errorf("PostgreSQL %s incompatível com cliente %d; suportado de 14 a %d", server, ca, ca)
-	}
-	if d.Engine == "mysql" && (sa != ca || sb != cb || sa < 8) {
-		return "", fmt.Errorf("MySQL %s exige cliente da mesma série; instalado %d.%d", server, ca, cb)
-	}
-	return fmt.Sprintf("Conexão OK · servidor %s · %s %d.%d", server, client, ca, cb), nil
-}
-
-func (NativeExecutor) Dump(ctx context.Context, d Database, w io.Writer) error {
+func dumpWithProfile(ctx context.Context, d Database, p clientProfile, w io.Writer) error {
 	env, options, cleanup, err := credentials(d)
 	if err != nil {
 		return err
 	}
 	defer cleanup()
 	if d.Engine == "postgres" {
-		return command(ctx, d, "pg_dump", append(options, "--format=custom", "--compress=1", "--dbname="+d.DBName), env, w)
+		return command(ctx, d, p.binary(p.Dump), append(options, "--format=custom", "--compress=1", "--dbname="+d.DBName), env, w)
 	}
 	gz, err := gzip.NewWriterLevel(w, gzip.BestSpeed)
 	if err != nil {
 		return err
 	}
-	err = command(ctx, d, "mysqldump", append(options, "--single-transaction", "--quick", "--routines", "--events", "--triggers", "--hex-blob", "--no-tablespaces", "--set-gtid-purged=OFF", "--column-statistics=0", d.DBName), env, gz)
+	dumpArgs := []string{"--single-transaction", "--quick", "--routines", "--events", "--triggers", "--hex-blob", "--no-tablespaces"}
+	if d.Engine == "mysql" {
+		dumpArgs = append(dumpArgs, "--set-gtid-purged=OFF", "--column-statistics=0")
+	}
+	err = command(ctx, d, p.binary(p.Dump), append(append(options, dumpArgs...), d.DBName), env, gz)
 	ce := gz.Close()
 	if err != nil {
 		return err

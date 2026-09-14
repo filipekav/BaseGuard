@@ -11,6 +11,7 @@ jobs:
       matrix:
         runner: [ubuntu-24.04, ubuntu-24.04-arm]
     runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -31,6 +32,11 @@ jobs:
           docker compose config -q
           docker compose -f compose.casaos.yaml config -q
           docker compose -f compose.test.yaml config -q
+          python3 scripts/check-client-lock.py
+      - uses: docker/setup-qemu-action@v3
+        if: matrix.runner == 'ubuntu-24.04-arm'
+        with:
+          platforms: amd64
       - name: Build application image
         run: docker compose build
       - name: Test CasaOS initialization and privilege drop
@@ -40,7 +46,9 @@ jobs:
       - name: Test CasaOS exFAT volumes
         run: sh scripts/test-exfat.sh
       - name: Backup and restore integration tests
-        run: docker compose -f compose.test.yaml up --build --abort-on-container-exit --exit-code-from tests
+        run: python3 scripts/test-matrix.py
+      - name: Report image size and idle memory
+        run: sh scripts/report-resources.sh >> "$GITHUB_STEP_SUMMARY"
       - name: Clean up disposable integration services
         if: always()
         run: docker compose -f compose.test.yaml down -v
