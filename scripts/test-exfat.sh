@@ -1,6 +1,10 @@
 #!/bin/sh
 # Real exFAT regression for the CasaOS automount defaults reported by users.
 set -eu
+if ! grep -qw exfat /proc/filesystems; then
+    echo "exFAT kernel driver is required. On the CI host, run scripts/prepare-exfat-ci.sh first." >&2
+    exit 1
+fi
 name="baseguard-exfat-$$"
 tmp=$(mktemp -d)
 cleanup() {

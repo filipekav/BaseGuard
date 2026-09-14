@@ -202,6 +202,8 @@ O painel foi pensado para rede privada/VPN. Caso use HTTPS em um proxy, preserve
 
 ## Desenvolvimento e testes
 
+O teste exFAT requer suporte no kernel do host, além de `exfatprogs`. O CI executa `scripts/prepare-exfat-ci.sh` para carregar o driver e, quando necessário, instalar `linux-modules-extra` da versão exata do kernel em execução. Essa preparação ocorre apenas no runner do GitHub; não é uma etapa de instalação para o usuário do CasaOS. O teste não é ignorado se o driver estiver indisponível.
+
 Go 1.26 ou superior; o Dockerfile fixa a ferramenta de build em Go 1.27.1. HTMX 2.0.10 está incluído localmente com sua licença. Não há npm, CDN ou etapa de frontend.
 
 ```bash

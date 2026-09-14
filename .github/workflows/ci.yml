@@ -35,11 +35,10 @@ jobs:
         run: docker compose build
       - name: Test CasaOS initialization and privilege drop
         run: sh scripts/test-container.sh
+      - name: Prepare exFAT kernel support
+        run: sh scripts/prepare-exfat-ci.sh
       - name: Test CasaOS exFAT volumes
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y exfatprogs
-          sh scripts/test-exfat.sh
+        run: sh scripts/test-exfat.sh
       - name: Backup and restore integration tests
         run: docker compose -f compose.test.yaml up --build --abort-on-container-exit --exit-code-from tests
       - name: Clean up disposable integration services
