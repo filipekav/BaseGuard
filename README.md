@@ -50,11 +50,15 @@ Alterar um caminho no CasaOS não move os arquivos. Pare o serviço antes de cop
 
 Uma pasta vazia de dados é uma instalação nova, não uma migração. Se um banco existente ficar sem sua chave, a inicialização recusa continuar e indica qual volume restaurar. Um destino existente sem marcador permanece indisponível para backups, mesmo que o painel abra; o log informa essa condição.
 
-O primeiro início prepara automaticamente os diretórios dedicados de dados, chave e backups locais. O processo principal executa como UID/GID **10001**; o entrypoint usa root apenas para preparar esses três diretórios e depois abandona os privilégios. Não há modo privilegiado nem acesso ao Docker socket.
+O primeiro início prepara automaticamente os diretórios dedicados de dados, chave e backups locais. Em volumes Linux, o processo principal usa UID/GID **10001**. Se um dos três volumes estiver em **exFAT**, o entrypoint detecta o proprietário definido pela montagem e usa esse UID/GID sem root (por exemplo, `300:1000` no CasaOS). As pastas dedicadas em ext4 são ajustadas ao mesmo usuário. O entrypoint usa root apenas nessa preparação e depois abandona os privilégios. Não há modo privilegiado nem acesso ao Docker socket.
+
+Para uma instalação nova no exFAT já montado pelo CasaOS, importe o Compose e escolha as pastas do disco no lado **host**, mantendo `/data`, `/secrets` e `/backups` dentro do container. Não é necessário executar `chown`, `chmod` ou definir um usuário manualmente. A detecção cobre o driver exFAT do kernel Linux; volumes exFAT diferentes devem usar o mesmo proprietário, sem root, e permitir escrita. Montagens somente leitura, exFAT pertencente a root e compartilhamentos com regras próprias não recebem permissões artificiais.
+
+Prefira manter dados e chave nos caminhos padrão do disco interno, usando exFAT apenas para os dumps. exFAT não permite proteger individualmente `master.key` com modo `0600`: o acesso acompanha as permissões de todo o volume. A detecção não modifica opções de montagem nem arquivos de outros aplicativos.
 
 Se preferir preencher o formulário manualmente, use imagem **`ghcr.io/filipekav/baseguard`**, tag **`latest`**, título **BaseGuard**, porta externa **18437** e porta interna **8080**. A importação do Compose é recomendada porque também configura volumes, permissões de inicialização, ambiente e healthcheck.
 
-O destino automático `/DATA/Backups/baseguard` é para **disco local**. Para NAS/USB use a configuração manual abaixo e desative `BASEGUARD_INIT_LOCAL_DESTINATION`; nunca inicialize automaticamente um compartilhamento que pode estar desmontado. Em instalações existentes, um marcador ausente não é recriado automaticamente.
+O destino automático `/DATA/Backups/baseguard` é para **disco local**. Um disco USB precisa estar montado antes da instalação e de cada início. Para NAS ou destinos cuja montagem não seja garantida, use a configuração manual abaixo e desative `BASEGUARD_INIT_LOCAL_DESTINATION`; nunca inicialize automaticamente um compartilhamento que pode estar desmontado. Em instalações existentes, um marcador ausente não é recriado automaticamente.
 
 ### Atualizar uma instalação com erro de permissão
 
@@ -72,9 +76,9 @@ docker compose -f compose.casaos.yaml logs --tail=50
 
 Não apague as pastas de dados, chave ou backups ao recriar o serviço. Para fixar uma versão, substitua `latest` pela tag `sha-<commit completo>` exibida na publicação concluída. A velocidade do download não identifica uma imagem antiga: camadas inalteradas são reutilizadas.
 
-A inicialização repara os proprietários dos diretórios dedicados e dos arquivos conhecidos de SQLite, chave e marcador, sem recriar a chave existente. Depois testa criação/remoção de arquivo como UID/GID `10001`. Não aplica `chmod 777` nem altera recursivamente os dumps. Um marcador ausente em uma instalação existente continua sem ser recriado automaticamente.
+A inicialização repara os proprietários dos diretórios dedicados e dos arquivos conhecidos de SQLite, chave e marcador, sem recriar a chave existente. Depois testa criação/remoção de arquivo como o usuário selecionado. Em exFAT, verifica acesso sem tentar `chown`/`chmod`. Não aplica `chmod 777` nem altera recursivamente os dumps. Um marcador ausente em uma instalação existente continua sem ser recriado automaticamente.
 
-Se a montagem rejeitar `chown`, só é permitido continuar se o aplicativo já tiver acesso. Em compartilhamentos e filesystems que não aceitam proprietários Unix, ajuste as permissões/UID/GID na montagem do host para `10001`; mantenha SQLite e chave em disco local. Não há correção dentro do container para um volume que o host disponibilizou sem escrita.
+Se outra montagem rejeitar `chown`, só é permitido continuar se o aplicativo já tiver acesso. A seleção automática do proprietário aplica-se ao exFAT; compartilhamentos precisam permitir o acesso ao usuário do aplicativo. Não há correção dentro do container para um volume que o host disponibilizou sem escrita.
 
 Para conferir a configuração efetiva, execute no servidor, a partir desta pasta:
 
@@ -82,7 +86,7 @@ Para conferir a configuração efetiva, execute no servidor, a partir desta past
 sudo sh scripts/diagnose-casaos.sh baseguard-baseguard-1
 ```
 
-O diagnóstico mostra imagem, usuário, capacidades, volumes, modo de acesso e filesystem, sem ler credenciais. Os testes de container do CI cobrem instalação nova, arquivos antigos pertencentes a root, preservação da chave, ausência de capacidades para `chown` e volumes inacessíveis/somente leitura.
+O diagnóstico mostra imagem, usuário inicial, capacidades, volumes, modo de acesso e filesystem, sem ler credenciais. Os testes de container do CI cobrem instalação nova, arquivos antigos pertencentes a root, preservação da chave, ausência de capacidades para `chown` e volumes inacessíveis/somente leitura. `scripts/test-exfat.sh` monta uma imagem exFAT descartável com `uid=300,gid=1000`, testa as três pastas externas e a combinação ext4/exFAT, reinício, escrita e preservação da chave. Esses testes rodam em AMD64 e ARM64.
 
 ### Publicação da imagem
 

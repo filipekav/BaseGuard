@@ -3,7 +3,7 @@ services:
   baseguard:
     image: ghcr.io/filipekav/baseguard:latest
     pull_policy: always
-    # Root prepares bind mounts; the entrypoint then switches to UID/GID 10001.
+    # Root prepares volumes, then switches to a non-root user (exFAT-aware).
     user: "0:0"
     ports:
       - "18437:8080"

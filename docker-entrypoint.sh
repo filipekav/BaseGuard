@@ -3,44 +3,82 @@ set -eu
 umask 077
 
 # Root is used only to prepare dedicated bind mounts created by CasaOS.
-# The application is always executed as the unprivileged UID/GID 10001.
+# The application always runs without root. exFAT ownership is mount-wide.
 startup_uid=$(id -u)
+app_uid=10001
+app_gid=10001
+data_dir=${BASEGUARD_DATA_DIR:-/data}
+key_file=${BASEGUARD_KEY_FILE:-/secrets/master.key}
+key_dir=$(dirname "$key_file")
+
+is_exfat() {
+    [ "$(stat -f -c %T "$1" 2>/dev/null)" = exfat ]
+}
+
+# Read only the dedicated volumes. Never change the disk's mount options.
+if [ "$startup_uid" = 0 ]; then
+    selected_owner=
+    for directory in "$data_dir" "$key_dir" /backups; do
+        case "$directory" in /data|/secrets|/backups) ;; *) continue ;; esac
+        [ ! -L "$directory" ] || continue
+        if is_exfat "$directory"; then
+            owner=$(stat -c %u "$directory")
+            group=$(stat -c %g "$directory")
+            if [ "$owner" = 0 ]; then
+                echo "BaseGuard: exFAT em $directory pertence a root. A montagem precisa de um proprietario sem root para permitir acesso privado ao aplicativo." >&2
+                exit 1
+            fi
+            if [ -n "$selected_owner" ] && [ "$selected_owner" != "$owner:$group" ]; then
+                echo "BaseGuard: volumes exFAT com proprietarios diferentes; use montagens com o mesmo UID/GID." >&2
+                exit 1
+            fi
+            selected_owner=$owner:$group
+            app_uid=$owner
+            app_gid=$group
+        fi
+    done
+    if [ -n "$selected_owner" ]; then
+        echo "BaseGuard: exFAT detectado; usuario do aplicativo $app_uid:$app_gid, conforme o proprietario da montagem." >&2
+    fi
+else
+    app_uid=$startup_uid
+    app_gid=$(id -g)
+fi
+
 as_app() {
-    if [ "$startup_uid" = 0 ]; then gosu 10001:10001 "$@"; else "$@"; fi
+    if [ "$startup_uid" = 0 ]; then gosu "$app_uid:$app_gid" "$@"; else "$@"; fi
 }
 
 # Maintenance commands do not require all application volumes.
 if [ "$#" -gt 0 ]; then
-    if [ "$startup_uid" = 0 ]; then exec gosu 10001:10001 /usr/local/bin/baseguard "$@"; fi
+    if [ "$startup_uid" = 0 ]; then exec gosu "$app_uid:$app_gid" /usr/local/bin/baseguard "$@"; fi
     exec /usr/local/bin/baseguard "$@"
 fi
 
 fail_access() {
-    echo "BaseGuard: sem acesso a $1 como usuario 10001:10001." >&2
+    echo "BaseGuard: sem acesso a $1 como usuario $app_uid:$app_gid." >&2
     ls -ldn "$1" >&2 2>/dev/null || true
     echo "Confira volume gravavel (RW), proprietario e permissoes no host. Recrie o container com o Compose CasaOS atualizado (usuario inicial 0:0 e capacidades padrao do Docker)." >&2
-    echo "Se o filesystem recusar chown, configure acesso ao UID/GID 10001 na montagem do host. As permissoes nao serao abertas com chmod 777." >&2
+    echo "O volume precisa permitir escrita ao UID/GID $app_uid:$app_gid. As permissoes nao serao abertas com chmod 777." >&2
     exit 1
 }
 
 if ! as_app true; then
-    echo "BaseGuard: nao foi possivel assumir UID/GID 10001; confira SETUID/SETGID e recrie usando o Compose atualizado." >&2
+    echo "BaseGuard: nao foi possivel assumir UID/GID $app_uid:$app_gid; confira SETUID/SETGID e recrie usando o Compose atualizado." >&2
     exit 1
 fi
 
 adjust_owner() {
+    # chmod/chown cannot set per-file Unix permissions on exFAT.
+    if is_exfat "$1"; then return 0; fi
     if [ "$startup_uid" = 0 ]; then
-        if chown 10001:10001 "$1"; then
+        if chown "$app_uid:$app_gid" "$1"; then
             chmod "$2" "$1" || fail_access "$1"
         else
             echo "BaseGuard: chown recusado em $1; verificando acesso efetivo do aplicativo." >&2
         fi
     fi
 }
-
-data_dir=${BASEGUARD_DATA_DIR:-/data}
-key_file=${BASEGUARD_KEY_FILE:-/secrets/master.key}
-key_dir=$(dirname "$key_file")
 
 prepare_directory() {
     if [ "$startup_uid" = 0 ]; then
@@ -86,5 +124,5 @@ if [ "${BASEGUARD_INIT_LOCAL_DESTINATION:-false}" = "true" ]; then
     fi
 fi
 
-if [ "$startup_uid" = 0 ]; then exec gosu 10001:10001 /usr/local/bin/baseguard "$@"; fi
+if [ "$startup_uid" = 0 ]; then exec gosu "$app_uid:$app_gid" /usr/local/bin/baseguard "$@"; fi
 exec /usr/local/bin/baseguard "$@"
