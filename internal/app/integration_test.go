@@ -87,11 +87,14 @@ func TestIntegrationRestore(t *testing.T) {
 			if !ready {
 				t.Fatal("database did not become ready")
 			}
-			createDB := "CREATE DATABASE fixture; CREATE DATABASE restored;"
-			if engine != "postgres" {
-				createDB = "CREATE DATABASE fixture CHARACTER SET utf8mb4; CREATE DATABASE restored CHARACTER SET utf8mb4;"
+			// PostgreSQL forbids CREATE DATABASE in a multi-statement transaction.
+			for _, name := range []string{"fixture", "restored"} {
+				createDB := "CREATE DATABASE " + name
+				if engine != "postgres" {
+					createDB += " CHARACTER SET utf8mb4"
+				}
+				sqlRun(admin, createDB)
 			}
-			sqlRun(admin, createDB)
 			ddl := `CREATE TABLE accounts (id INTEGER PRIMARY KEY, amount INTEGER NOT NULL); CREATE TABLE audit (account_id INTEGER); CREATE VIEW balances AS SELECT SUM(amount) AS total FROM accounts;`
 			if engine == "postgres" {
 				ddl += `CREATE FUNCTION record_insert() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN INSERT INTO audit VALUES (NEW.id); RETURN NEW; END $$; CREATE TRIGGER account_insert AFTER INSERT ON accounts FOR EACH ROW EXECUTE FUNCTION record_insert(); CREATE FUNCTION doubled(x INTEGER) RETURNS INTEGER LANGUAGE SQL AS 'SELECT x * 2';`

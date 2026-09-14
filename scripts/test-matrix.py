@@ -19,6 +19,7 @@ openssl("req", "-newkey", "rsa:2048", "-nodes", "-subj", "/CN=db", "-keyout", "s
 openssl("x509", "-req", "-in", "server.csr", "-CA", "ca.crt", "-CAkey", "ca.key", "-CAcreateserial", "-days", "2", "-extfile", "extensions.cnf", "-out", "server.crt")
 openssl("req", "-x509", "-newkey", "rsa:2048", "-nodes", "-days", "2", "-subj", "/CN=Wrong CA", "-keyout", "wrong.key", "-out", "wrong.crt")
 compose = ["docker", "compose", "-f", "compose.test.yaml"]
+failures = []
 for row in lock["images"]:
     engine, tag = row["image"].split(":")
     series = tag.split(".")[0] if engine == "postgres" else ".".join(tag.split(".")[:2])
@@ -29,8 +30,12 @@ for row in lock["images"]:
         env["BASEGUARD_TEST_NO_TLS"] = no_tls
         print(f"::group::{row['image']} / native client {arch} / no_tls={no_tls}", flush=True)
         try:
-            subprocess.run(compose + ["up", "--build", "--abort-on-container-exit", "--exit-code-from", "tests"],
-                           cwd=root, env=env, check=True)
+            result = subprocess.run(compose + ["up", "--build", "--abort-on-container-exit", "--exit-code-from", "tests"],
+                                    cwd=root, env=env, check=False)
+            if result.returncode:
+                failures.append(f"{row['image']} no_tls={no_tls}")
         finally:
             subprocess.run(compose + ["down", "-v"], cwd=root, env=env, check=True)
             print("::endgroup::", flush=True)
+if failures:
+    raise SystemExit("Compatibility tests failed: " + ", ".join(failures))
