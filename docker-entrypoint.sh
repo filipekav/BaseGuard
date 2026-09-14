@@ -69,6 +69,11 @@ for file in baseguard.db baseguard.db-wal baseguard.db-shm baseguard.db-journal 
 done
 prepare_file "$key_file" 0600 read
 
+if [ -s "$data_dir/baseguard.db" ] && [ ! -f "$key_file" ]; then
+    echo "BaseGuard: banco existente sem a chave $key_file. Se mudou os volumes, restaure a pasta de secrets original junto com a pasta data; uma chave nova nao recupera as credenciais." >&2
+    exit 1
+fi
+
 # Automatic initialization is restricted to the default local destination on
 # a fresh installation. Existing instances never recreate a missing marker.
 if [ "${BASEGUARD_INIT_LOCAL_DESTINATION:-false}" = "true" ]; then
@@ -76,6 +81,8 @@ if [ "${BASEGUARD_INIT_LOCAL_DESTINATION:-false}" = "true" ]; then
     prepare_file /backups/.baseguard-destination 0644 read
     if [ ! -e "$data_dir/baseguard.db" ] && [ ! -e "$key_file" ] && [ ! -e /backups/.baseguard-destination ]; then
         as_app /usr/local/bin/baseguard init-destination /backups Principal
+    elif [ ! -e /backups/.baseguard-destination ]; then
+        echo "BaseGuard: /backups sem marcador em instalacao existente. Se mudou o volume, copie o destino original completo, incluindo .baseguard-destination. O painel pode iniciar, mas este destino nao aceitara backups ate ser configurado." >&2
     fi
 fi
 

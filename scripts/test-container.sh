@@ -28,6 +28,35 @@ docker exec "$name" sh -c 'test "$(awk "/^Uid:/{print \$2}" /proc/1/status)" = 1
 sudo test -f "$tmp/backups/.baseguard-destination"
 sudo test -f "$tmp/secrets/master.key"
 docker stop "$name"
+# Moving the host paths works when all files (including hidden files) move
+# together. Keep the old directories intact, as in a real safe migration.
+mkdir "$tmp/moved"
+sudo cp -a "$tmp/data" "$tmp/secrets" "$tmp/backups" "$tmp/moved/"
+docker rm "$name"
+docker run -d --name "$name" --user 0:0 --read-only --tmpfs /tmp:size=16m,mode=1777 \
+    --security-opt no-new-privileges:true -e BASEGUARD_INIT_LOCAL_DESTINATION=true \
+    -v "$tmp/moved/data:/data" -v "$tmp/moved/secrets:/secrets" -v "$tmp/moved/backups:/backups" baseguard:local
+wait_ready
+sudo cmp "$tmp/secrets/master.key" "$tmp/moved/secrets/master.key"
+sudo cmp "$tmp/backups/.baseguard-destination" "$tmp/moved/backups/.baseguard-destination"
+docker rm -f "$name"
+
+# An existing database must never silently get a replacement encryption key.
+mkdir "$tmp/empty-secrets"
+if docker run --name "$name" --read-only --tmpfs /tmp:size=16m,mode=1777 \
+    -e BASEGUARD_INIT_LOCAL_DESTINATION=true \
+    -v "$tmp/moved/data:/data" -v "$tmp/empty-secrets:/secrets" -v "$tmp/moved/backups:/backups" baseguard:local; then
+    echo "Expected missing original key to fail" >&2; exit 1
+fi
+docker logs "$name" 2>&1 | grep -F 'banco existente sem a chave'
+if sudo test -e "$tmp/empty-secrets/master.key"; then exit 1; fi
+docker rm -f "$name"
+
+docker run -d --name "$name" --user 0:0 --read-only --tmpfs /tmp:size=16m,mode=1777 \
+    --security-opt no-new-privileges:true -e BASEGUARD_INIT_LOCAL_DESTINATION=true \
+    -v "$tmp/data:/data" -v "$tmp/secrets:/secrets" -v "$tmp/backups:/backups" baseguard:local
+wait_ready
+docker stop "$name"
 # Existing installations may contain root-owned files, including a private key.
 key_before=$(sudo sha256sum "$tmp/secrets/master.key")
 sudo chown -R 0:0 "$tmp/data" "$tmp/secrets" "$tmp/backups"

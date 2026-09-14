@@ -8,7 +8,8 @@ services:
     ports:
       - "18437:8080"
     environment:
-      BASEGUARD_DESTINATIONS: '{"Principal":"/backups"}'
+      # The application already defaults to Principal -> /backups.
+      # Avoid JSON values that can lose their quotes in the CasaOS form.
       BASEGUARD_SECURE_COOKIES: "false"
       BASEGUARD_INIT_LOCAL_DESTINATION: "true"
     volumes:

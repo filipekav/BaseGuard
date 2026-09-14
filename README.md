@@ -40,6 +40,16 @@ Após a publicação da imagem no GitHub Actions:
 4. Clique em **Instalar**. O CasaOS baixa `ghcr.io/filipekav/baseguard:latest`, escolhendo ARM64 ou AMD64 automaticamente.
 5. Abra `http://IP-DO-SERVIDOR:18437`. O usuário é **admin** e a senha inicial aleatória aparece nos logs do container. Troque-a em **Configurações**.
 
+Na instalação padrão, **não cadastre `BASEGUARD_DESTINATIONS`**: o programa já utiliza `Principal` em `/backups`. O Compose CasaOS omite essa variável para evitar perda das aspas do JSON no formulário. Se estiver atualizando uma instalação antiga, remova também o valor antigo salvo no CasaOS e aplique a alteração.
+
+Você pode escolher outras pastas **no host** antes da primeira instalação. Mantenha os caminhos **dentro do container** como `/data`, `/secrets` e `/backups`. As pastas locais novas são preparadas automaticamente; uma instalação em disco local gravável não exige comandos manuais de permissões.
+
+### Alterar os volumes depois de instalar
+
+Alterar um caminho no CasaOS não move os arquivos. Pare o serviço antes de copiar: leve todo o conteúdo de `data` (inclusive arquivos auxiliares do SQLite), `secrets` (a chave original) e, quando mudar o destino, os backups com o arquivo oculto `.baseguard-destination`. Preserve proprietários e permissões. Atualize somente os caminhos no host, aplique a configuração e confira o acesso antes de remover qualquer cópia antiga.
+
+Uma pasta vazia de dados é uma instalação nova, não uma migração. Se um banco existente ficar sem sua chave, a inicialização recusa continuar e indica qual volume restaurar. Um destino existente sem marcador permanece indisponível para backups, mesmo que o painel abra; o log informa essa condição.
+
 O primeiro início prepara automaticamente os diretórios dedicados de dados, chave e backups locais. O processo principal executa como UID/GID **10001**; o entrypoint usa root apenas para preparar esses três diretórios e depois abandona os privilégios. Não há modo privilegiado nem acesso ao Docker socket.
 
 Se preferir preencher o formulário manualmente, use imagem **`ghcr.io/filipekav/baseguard`**, tag **`latest`**, título **BaseGuard**, porta externa **18437** e porta interna **8080**. A importação do Compose é recomendada porque também configura volumes, permissões de inicialização, ambiente e healthcheck.

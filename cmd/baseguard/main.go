@@ -74,7 +74,7 @@ func run() error {
 	defer lock.Close()
 	var destinations map[string]string
 	if err = json.Unmarshal([]byte(env("BASEGUARD_DESTINATIONS", `{"Principal":"/backups"}`)), &destinations); err != nil {
-		return fmt.Errorf("BASEGUARD_DESTINATIONS: %w", err)
+		return fmt.Errorf("BASEGUARD_DESTINATIONS: JSON inválido (%w). Para o destino padrão Principal em /backups, remova essa variável das configurações do container e aplique a alteração", err)
 	}
 	if len(destinations) == 0 {
 		return fmt.Errorf("configure pelo menos um destino")
